@@ -7,11 +7,24 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   shoes: "Shoes",
 };
 
+/** What the vision pass recorded about a garment. Null until it's been described. */
+export interface GarmentAnalysis {
+  description: string;
+  colors: string[];
+  pattern: string;
+  formality: "casual" | "smart-casual" | "formal";
+  warmth: "light" | "mid" | "warm";
+  seasons: string[];
+  occasions: string[];
+}
+
 export interface Garment {
   id: number;
   category: Category;
   imageUrl: string;
   createdAt: string;
+  /** Doubles as real alt text — a cutout is meaningless to a screen reader otherwise. */
+  analysis: GarmentAnalysis | null;
 }
 
 export async function listGarments(category?: Category): Promise<Garment[]> {

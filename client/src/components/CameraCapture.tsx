@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import Icon from "./Icon";
 
 /**
- * Live camera capture. Opens the device camera via getUserMedia, shows a live
- * preview, and captures a still frame to a PNG Blob when the user taps Capture.
- * Falls back gracefully (with a message) when no camera is available — the
- * parent still offers file upload.
+ * Live camera capture via getUserMedia, with a still frame captured to a PNG
+ * Blob. Falls back with a message when no camera is available — the parent
+ * still offers the photo picker.
  */
 export default function CameraCapture({
   onCapture,
@@ -29,7 +29,7 @@ export default function CameraCapture({
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
       })
-      .catch(() => setError("Camera unavailable — use Upload instead."));
+      .catch(() => setError("No camera available on this device."));
 
     return () => {
       cancelled = true;
@@ -54,21 +54,32 @@ export default function CameraCapture({
 
   if (error) {
     return (
-      <div className="card">
-        <p className="muted">{error}</p>
-        <button onClick={onCancel}>Back</button>
+      <div className="notice is-error" role="alert">
+        <Icon name="alert" size={21} className="notice-icon" />
+        <div>
+          <strong className="t-headline">{error}</strong>
+          <p className="t-foot">Choose a photo from your library instead.</p>
+        </div>
+        <button className="btn btn-plain btn-small" onClick={onCancel}>
+          Back
+        </button>
       </div>
     );
   }
 
   return (
     <div>
-      <video ref={videoRef} className="preview" autoPlay playsInline muted />
-      <div className="row" style={{ marginTop: 12 }}>
-        <button className="primary" style={{ flex: 1 }} onClick={capture}>
-          Capture
+      <div className="shot">
+        <video ref={videoRef} autoPlay playsInline muted />
+      </div>
+      <div className="row" style={{ marginTop: 14 }}>
+        <button className="btn btn-primary grow" onClick={capture}>
+          <Icon name="camera" size={20} />
+          Take photo
         </button>
-        <button onClick={onCancel}>Cancel</button>
+        <button className="btn" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </div>
   );

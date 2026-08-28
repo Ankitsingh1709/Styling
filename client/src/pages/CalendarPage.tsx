@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import Screen from "../components/Screen";
+import Sheet from "../components/Sheet";
+import Icon from "../components/Icon";
 import {
   clearWear,
   listOutfits,
@@ -16,12 +19,12 @@ const MONTHS = [
 ];
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
-function OutfitStack({ outfit }: { outfit: Outfit }) {
+function Stack({ outfit }: { outfit: Outfit }) {
   return (
     <div className="stack">
-      {outfit.top && <img src={outfit.top.imageUrl} alt="top" />}
-      {outfit.bottom && <img src={outfit.bottom.imageUrl} alt="bottom" />}
-      {outfit.shoes && <img src={outfit.shoes.imageUrl} alt="shoes" />}
+      {outfit.top && <img src={outfit.top.imageUrl} alt="" />}
+      {outfit.bottom && <img src={outfit.bottom.imageUrl} alt="" />}
+      {outfit.shoes && <img src={outfit.shoes.imageUrl} alt="" />}
     </div>
   );
 }
@@ -41,7 +44,7 @@ export default function CalendarPage() {
         setOutfits(o);
         setWears(w);
       })
-      .catch(() => setMessage("Could not load the calendar."))
+      .catch(() => setMessage("Couldn't reach the server."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -61,18 +64,13 @@ export default function CalendarPage() {
     setSelected(null);
   }
 
-  function goToday() {
-    setView({ year: today.getFullYear(), month: today.getMonth() });
-    setSelected(todayStr);
-  }
-
   async function assign(date: string, outfitId: number) {
     setMessage(null);
     try {
       const wear = await setWear(date, outfitId);
       setWears((prev) => [...prev.filter((w) => w.date !== date), wear]);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Failed to save");
+      setMessage(err instanceof Error ? err.message : "Couldn't save that.");
     }
   }
 
@@ -85,7 +83,6 @@ export default function CalendarPage() {
     }
   }
 
-  // Build the grid: leading blanks for the first-of-month offset, then the days.
   const firstDow = new Date(view.year, view.month, 1).getDay();
   const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
   const cells: (number | null)[] = [
@@ -95,36 +92,47 @@ export default function CalendarPage() {
 
   if (loading) {
     return (
-      <div className="page">
-        <header className="page-head">
-          <h1>Calendar</h1>
-          <p className="lede">Loading your plan…</p>
-        </header>
+      <Screen title="Calendar" lede="Loading your plan…">
         <div className="skeleton" style={{ height: 320 }} />
-      </div>
+      </Screen>
     );
   }
 
   const selectedWear = selected ? wearByDate.get(selected) : undefined;
+  const monthLabel = `${MONTHS[view.month]} ${view.year}`;
+  const isThisMonth =
+    view.year === today.getFullYear() && view.month === today.getMonth();
 
   return (
-    <div className="page">
-      <header className="page-head">
-        <h1>Calendar</h1>
-        <p className="lede">
-          Plan what you&apos;re wearing — tap a day, pick a saved outfit.
-        </p>
-      </header>
-
-      <div className="cal-header">
-        <button className="arrow" onClick={() => shiftMonth(-1)} aria-label="Previous month">‹</button>
-        <div className="cal-title">
-          {MONTHS[view.month]} {view.year}
+    <Screen title="Calendar" lede="Tap a day to plan what you're wearing.">
+      <div className="cal-head">
+        <h2 className="t-title">{monthLabel}</h2>
+        <div className="row" style={{ gap: 2 }}>
+          {!isThisMonth && (
+            <button
+              className="btn btn-plain btn-small"
+              onClick={() => setView({ year: today.getFullYear(), month: today.getMonth() })}
+            >
+              Today
+            </button>
+          )}
+          <button
+            className="nav-bar-action"
+            style={{ position: "static" }}
+            onClick={() => shiftMonth(-1)}
+            aria-label="Previous month"
+          >
+            <Icon name="chevronLeft" size={20} strokeWidth={2} />
+          </button>
+          <button
+            className="nav-bar-action"
+            style={{ position: "static" }}
+            onClick={() => shiftMonth(1)}
+            aria-label="Next month"
+          >
+            <Icon name="chevronRight" size={20} strokeWidth={2} />
+          </button>
         </div>
-        <button className="arrow" onClick={() => shiftMonth(1)} aria-label="Next month">›</button>
-      </div>
-      <div className="row" style={{ justifyContent: "center", marginBottom: 12 }}>
-        <button onClick={goToday}>Today</button>
       </div>
 
       <div className="cal-grid">
@@ -137,78 +145,92 @@ export default function CalendarPage() {
           const wear = wearByDate.get(date);
           const classes = [
             "cal-day",
-            date === todayStr ? "is-today" : "",
-            date === selected ? "is-selected" : "",
+            date === todayStr ? "today" : "",
+            date === selected ? "selected" : "",
           ].join(" ");
           return (
-            <button key={date} className={classes} onClick={() => setSelected(date)}>
-              <span className="cal-num">
-                {day}
-                {wear && <span className="cal-dot" aria-label="outfit planned" />}
-              </span>
+            <button
+              key={date}
+              className={classes}
+              onClick={() => setSelected(date)}
+              aria-label={`${day} ${monthLabel}${wear ? `, wearing ${wear.outfit.name ?? "an outfit"}` : ""}`}
+            >
               {wear && (
-                <div className="cal-mini" title={wear.outfit.name ?? "Outfit planned"}>
-                  <OutfitStack outfit={wear.outfit} />
-                </div>
+                <img
+                  className="thumb"
+                  src={wear.outfit.top?.imageUrl ?? wear.outfit.bottom?.imageUrl}
+                  alt=""
+                />
               )}
+              <span>{day}</span>
             </button>
           );
         })}
       </div>
 
-      {selected && (
-        <div className="card" style={{ marginTop: 16 }}>
-          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <strong>{selected === todayStr ? "Today" : selected}</strong>
-            {selectedWear && (
-              <button className="danger" onClick={() => clear(selected)}>Clear day</button>
-            )}
+      {message && (
+        <div className="notice is-error" style={{ marginTop: 18 }} role="alert">
+          <Icon name="alert" size={21} className="notice-icon" />
+          <div>
+            <strong className="t-headline">{message}</strong>
           </div>
+        </div>
+      )}
 
+      {selected && (
+        <Sheet
+          title={selected === todayStr ? "Today" : new Date(selected).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+          onClose={() => setSelected(null)}
+        >
           {selectedWear && (
-            <div style={{ marginTop: 10 }}>
-              <p className="muted" style={{ margin: "0 0 6px" }}>
-                Wearing{selectedWear.outfit.name ? `: ${selectedWear.outfit.name}` : ""}
+            <div style={{ marginBottom: 20 }}>
+              <p className="group-title">
+                Wearing{selectedWear.outfit.name ? ` · ${selectedWear.outfit.name}` : ""}
               </p>
-              <div className="outfit-thumb" style={{ maxWidth: 110 }}>
-                <OutfitStack outfit={selectedWear.outfit} />
+              <div className="row" style={{ alignItems: "center", gap: 14 }}>
+                <div className="outfit-card" style={{ width: 96, flex: "0 0 auto" }}>
+                  <Stack outfit={selectedWear.outfit} />
+                </div>
+                <button className="btn btn-danger btn-small" onClick={() => clear(selected)}>
+                  <Icon name="trash" size={17} />
+                  Clear day
+                </button>
               </div>
             </div>
           )}
 
-          <p className="muted" style={{ margin: "14px 0 8px" }}>
-            {selectedWear ? "Change to another outfit:" : "Pick an outfit for this day:"}
+          <p className="group-title">
+            {selectedWear ? "Change to" : "Pick an outfit"}
           </p>
           {outfits.length === 0 ? (
-            <p className="muted" style={{ margin: 0 }}>
-              No saved outfits yet — build one in the <Link to="/mixer">Mixer</Link>.
-            </p>
+            <div className="empty" style={{ padding: "24px 8px" }}>
+              <span className="empty-icon">
+                <Icon name="sliders" size={26} />
+              </span>
+              <strong className="t-headline">No saved outfits yet</strong>
+              <p className="t-sub">
+                Build one in the <Link to="/mixer">Mixer</Link> and it&apos;ll show up here.
+              </p>
+            </div>
           ) : (
-            <div className="outfit-thumbs">
+            <div className="outfit-grid">
               {outfits.map((o) => (
                 <button
                   key={o.id}
-                  className="outfit-thumb"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => assign(selected, o.id)}
+                  className="outfit-card"
+                  onClick={() => {
+                    assign(selected, o.id);
+                    setSelected(null);
+                  }}
                 >
-                  <OutfitStack outfit={o} />
-                  {o.name && <p className="thumb-name">{o.name}</p>}
+                  <Stack outfit={o} />
+                  <span className="name">{o.name ?? "Unnamed"}</span>
                 </button>
               ))}
             </div>
           )}
-        </div>
+        </Sheet>
       )}
-
-      {message && (
-        <div className="toast error" style={{ marginTop: 14 }} role="alert">
-          <span className="toast-icon">⚠️</span>
-          <div>
-            <strong>{message}</strong>
-          </div>
-        </div>
-      )}
-    </div>
+    </Screen>
   );
 }

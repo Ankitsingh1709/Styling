@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import Screen from "../components/Screen";
+import Icon from "../components/Icon";
 import {
   ApiError,
   askStylist,
@@ -15,7 +17,6 @@ import {
 } from "../api";
 import { useBodyType } from "../lib/bodyType";
 
-/** One turn in the thread. Assistant turns can carry an outfit the AI picked. */
 interface Turn extends ChatMessage {
   pick?: StylistPick | null;
 }
@@ -24,10 +25,9 @@ const STARTERS = [
   "I'm going to a party tonight",
   "Something for work tomorrow",
   "Dinner date, keep it smart",
-  "It's cold — what's warm?",
+  "It's cold out",
 ];
 
-/** Tracks what the user has already done with a given suggestion. */
 interface PickState {
   savedOutfitId?: number;
   worn?: boolean;
@@ -35,7 +35,7 @@ interface PickState {
   error?: string;
 }
 
-function PickCard({
+function Suggestion({
   pick,
   state,
   onSave,
@@ -50,87 +50,37 @@ function PickCard({
   const alreadySaved = pick.kind === "saved" || state.savedOutfitId !== undefined;
 
   return (
-    <div className="pick-card">
-      <div className="pick-stack">
+    <div className="suggestion">
+      <div className="suggestion-stack">
         {pieces.map((g) => (
           <img key={g!.id} src={g!.imageUrl} alt="" />
         ))}
       </div>
-      <div className="pick-body">
-        <strong>{pick.name ?? "This look"}</strong>
-        <p className="muted small">{pick.why}</p>
-        <div className="row">
-          <button onClick={onWear} disabled={state.busy !== undefined || state.worn}>
-            {state.busy === "wear" ? (
-              <>
-                <span className="spinner" />
-                Saving…
-              </>
-            ) : state.worn ? (
-              "✓ On today's calendar"
-            ) : (
-              "Wear it today"
-            )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <strong className="t-headline">{pick.name ?? "This look"}</strong>
+        <p className="t-foot secondary" style={{ margin: "3px 0 10px" }}>{pick.why}</p>
+        <div className="row" style={{ gap: 8 }}>
+          <button
+            className="btn btn-primary btn-small"
+            onClick={onWear}
+            disabled={state.busy !== undefined || state.worn}
+          >
+            {state.busy === "wear" ? <span className="spinner" /> : null}
+            {state.worn ? "On today's calendar" : "Wear it today"}
           </button>
           {!alreadySaved && (
-            <button onClick={onSave} disabled={state.busy !== undefined}>
-              {state.busy === "save" ? (
-                <>
-                  <span className="spinner" />
-                  Saving…
-                </>
-              ) : (
-                "Save as an outfit"
-              )}
+            <button className="btn btn-small" onClick={onSave} disabled={state.busy !== undefined}>
+              {state.busy === "save" ? <span className="spinner" /> : null}
+              Save
             </button>
           )}
-          {alreadySaved && pick.kind === "fresh" && (
-            <span className="muted small" style={{ alignSelf: "center" }}>
-              ✓ Saved to outfits
-            </span>
-          )}
         </div>
-        {state.error && <p className="muted small">{state.error}</p>}
+        {state.error && (
+          <p className="t-foot" style={{ color: "var(--danger)", marginTop: 8 }}>
+            {state.error}
+          </p>
+        )}
       </div>
-    </div>
-  );
-}
-
-/**
- * Cloud vs. on-device. Switching is a server-side setting, so garment tagging
- * and the chat always use the same backend.
- */
-function ProviderPicker({
-  providers,
-  busy,
-  onPick,
-}: {
-  providers: ProviderStatus[];
-  busy: boolean;
-  onPick: (id: ProviderId) => void;
-}) {
-  const active = providers.find((p) => p.active);
-  return (
-    <div className="provider-picker">
-      <div className="segmented">
-        {providers.map((p) => (
-          <button
-            key={p.id}
-            className={p.active ? "active" : ""}
-            onClick={() => onPick(p.id)}
-            disabled={busy || p.active}
-            title={p.detail}
-          >
-            <span className={`dot ${p.available ? "ok" : "off"}`} aria-hidden="true" />
-            {p.label}
-          </button>
-        ))}
-      </div>
-      {active && (
-        <p className="muted small provider-detail">
-          {active.available ? "▸" : "⚠"} {active.model} — {active.detail}
-        </p>
-      )}
     </div>
   );
 }
@@ -153,22 +103,21 @@ export default function StylistPage() {
       .catch(() => setProviders([]));
   }, []);
 
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [turns, thinking]);
+
   async function pickProvider(id: ProviderId) {
     setSwitching(true);
     setNeedsSetup(false);
     try {
-      const r = await setProvider(id);
-      setProviders(r.providers);
+      setProviders((await setProvider(id)).providers);
     } catch {
       /* leave the old selection showing */
     } finally {
       setSwitching(false);
     }
   }
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [turns, thinking]);
 
   async function send(text: string) {
     const content = text.trim();
@@ -187,20 +136,16 @@ export default function StylistPage() {
       );
       setTurns((prev) => [...prev, { role: "assistant", content: reply, pick }]);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 503) {
-        setNeedsSetup(true);
-      } else {
-        setError(err instanceof Error ? err.message : "The stylist couldn't answer");
-      }
-      // Drop the unanswered turn so the retry doesn't duplicate it.
-      setTurns((prev) => prev.slice(0, -1));
+      if (err instanceof ApiError && err.status === 503) setNeedsSetup(true);
+      else setError(err instanceof Error ? err.message : "The stylist couldn't answer.");
+      setTurns((prev) => prev.slice(0, -1)); // drop the unanswered turn
       setDraft(content);
     } finally {
       setThinking(false);
     }
   }
 
-  /** Save a fresh combination so it exists as a real outfit. Returns its id. */
+  /** A fresh combination has to become a real outfit before it can be worn. */
   async function persist(pick: StylistPick, index: number): Promise<number> {
     if (pick.kind === "saved" && pick.outfit) return pick.outfit.id;
     const existing = picks[index]?.savedOutfitId;
@@ -216,94 +161,88 @@ export default function StylistPage() {
     return outfit.id;
   }
 
-  async function handleSave(pick: StylistPick, index: number) {
-    setPicks((p) => ({ ...p, [index]: { ...p[index], busy: "save", error: undefined } }));
+  async function act(pick: StylistPick, index: number, kind: "save" | "wear") {
+    setPicks((p) => ({ ...p, [index]: { ...p[index], busy: kind, error: undefined } }));
     try {
-      await persist(pick, index);
-      setPicks((p) => ({ ...p, [index]: { ...p[index], busy: undefined } }));
+      const outfitId = await persist(pick, index);
+      if (kind === "wear") await setWear(ymd(new Date()), outfitId);
+      setPicks((p) => ({
+        ...p,
+        [index]: { ...p[index], busy: undefined, worn: kind === "wear" || p[index]?.worn },
+      }));
     } catch (err) {
       setPicks((p) => ({
         ...p,
         [index]: {
           ...p[index],
           busy: undefined,
-          error: err instanceof Error ? err.message : "Couldn't save that",
+          error: err instanceof Error ? err.message : "That didn't save.",
         },
       }));
     }
   }
 
-  async function handleWear(pick: StylistPick, index: number) {
-    setPicks((p) => ({ ...p, [index]: { ...p[index], busy: "wear", error: undefined } }));
-    try {
-      // The calendar stores outfit ids, so a fresh combination has to become a
-      // real outfit before it can be worn.
-      const outfitId = await persist(pick, index);
-      await setWear(ymd(new Date()), outfitId);
-      setPicks((p) => ({ ...p, [index]: { ...p[index], busy: undefined, worn: true } }));
-    } catch (err) {
-      setPicks((p) => ({
-        ...p,
-        [index]: {
-          ...p[index],
-          busy: undefined,
-          error: err instanceof Error ? err.message : "Couldn't add it to the calendar",
-        },
-      }));
-    }
-  }
+  const providerPicker = providers.length > 0 && (
+    <div style={{ marginBottom: 18 }}>
+      <div className="segmented" role="group" aria-label="Where the stylist runs">
+        {providers.map((p) => (
+          <button
+            key={p.id}
+            className={p.active ? "active" : ""}
+            onClick={() => pickProvider(p.id)}
+            disabled={switching || p.active}
+            title={p.detail}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <p className="t-foot secondary" style={{ margin: "7px 4px 0", textAlign: "center" }}>
+        {providers.find((p) => p.active)?.model} — {providers.find((p) => p.active)?.detail}
+      </p>
+    </div>
+  );
 
   if (needsSetup) {
     return (
-      <div className="page">
-        <header className="page-head">
-          <h1>Stylist</h1>
-          <p className="lede">Pick where the styling runs — your Mac, or Claude.</p>
-        </header>
-        {providers.length > 0 && (
-          <ProviderPicker providers={providers} busy={switching} onPick={pickProvider} />
-        )}
-        <div className="card">
-          <strong>Set up one of these</strong>
-          <p className="muted small" style={{ marginTop: 8, marginBottom: 4 }}>
-            <b>On this Mac</b> — start LM Studio (or Ollama) and load a vision-capable
-            model. Point the server at it if it isn&apos;t on the default port:
+      <Screen title="Stylist" lede="Choose where the styling runs — your own machine, or Claude.">
+        {providerPicker}
+        <div className="group" style={{ padding: 18 }}>
+          <strong className="t-headline">Set up one of these</strong>
+          <p className="t-sub secondary" style={{ margin: "10px 0 4px" }}>
+            <b>On this Mac</b> — run LM Studio or Ollama with a vision-capable model
+            loaded, then set it in <code>server/.env</code>:
           </p>
-          <pre className="code-block">
+          <pre className="t-foot" style={{ overflowX: "auto", background: "var(--fill)", padding: 12, borderRadius: 10 }}>
 {`LOCAL_BASE_URL=http://localhost:1234/v1
 LOCAL_MODEL=qwen/qwen3.6-35b-a3b`}
           </pre>
-          <p className="muted small" style={{ marginBottom: 4 }}>
-            <b>Claude</b> — put a key in <code>server/.env</code>:
+          <p className="t-sub secondary" style={{ margin: "14px 0 4px" }}>
+            <b>Claude</b> — add a key to <code>server/.env</code>:
           </p>
-          <pre className="code-block">ANTHROPIC_API_KEY=sk-ant-...</pre>
-          <p className="muted small">
-            Then restart the server. Everything else in the app works without either.
+          <pre className="t-foot" style={{ overflowX: "auto", background: "var(--fill)", padding: 12, borderRadius: 10 }}>
+            ANTHROPIC_API_KEY=…
+          </pre>
+          <p className="t-foot secondary" style={{ marginBottom: 0 }}>
+            Restart the server afterwards. Everything else works without either.
           </p>
         </div>
-      </div>
+      </Screen>
     );
   }
 
   return (
-    <div className="page stylist-page">
-      <header className="page-head">
-        <h1>Stylist</h1>
-        <p className="lede">
-          Tell me where you&apos;re going and I&apos;ll pull a look from your own wardrobe.
-        </p>
-      </header>
-
-      {providers.length > 0 && (
-        <ProviderPicker providers={providers} busy={switching} onPick={pickProvider} />
-      )}
+    <Screen title="Stylist" lede="Say where you're going and I'll pull a look from your own wardrobe.">
+      {providerPicker}
 
       {turns.length === 0 && (
-        <div className="empty-state" style={{ padding: "28px 20px" }}>
-          <span className="art">✨</span>
-          <strong>Where are you headed?</strong>
-          <p>I only suggest things you actually own.</p>
-          <div className="chips" style={{ justifyContent: "center", marginBottom: 0 }}>
+        <div className="empty" style={{ paddingTop: 26 }}>
+          <span className="empty-icon">
+            <Icon name="sparkles" size={28} />
+          </span>
+          <strong className="t-title">Where are you headed?</strong>
+          <p className="t-sub">I only suggest things you actually own.</p>
+          <div className="chip-row">
             {STARTERS.map((s) => (
               <button key={s} className="chip" onClick={() => send(s)}>
                 {s}
@@ -313,21 +252,21 @@ LOCAL_MODEL=qwen/qwen3.6-35b-a3b`}
         </div>
       )}
 
-      <div className="chat">
+      <div className="thread">
         {turns.map((t, i) => (
           <div key={i} className={`bubble ${t.role}`}>
             <p>{t.content}</p>
             {t.pick && (
-              <PickCard
+              <Suggestion
                 pick={t.pick}
                 state={picks[i] ?? {}}
-                onSave={() => handleSave(t.pick!, i)}
-                onWear={() => handleWear(t.pick!, i)}
+                onSave={() => act(t.pick!, i, "save")}
+                onWear={() => act(t.pick!, i, "wear")}
               />
             )}
             {t.role === "assistant" && !t.pick && (
-              <p className="muted small" style={{ marginBottom: 0 }}>
-                Nothing in the wardrobe fits that yet —{" "}
+              <p className="t-foot secondary" style={{ marginTop: 8 }}>
+                Nothing in your wardrobe fits that yet —{" "}
                 <Link to="/">add a few more pieces</Link>.
               </p>
             )}
@@ -347,33 +286,33 @@ LOCAL_MODEL=qwen/qwen3.6-35b-a3b`}
       </div>
 
       {error && (
-        <div className="toast error" role="alert">
-          <span className="toast-icon">⚠️</span>
+        <div className="notice is-error" style={{ marginTop: 14 }} role="alert">
+          <Icon name="alert" size={21} className="notice-icon" />
           <div>
-            <strong>{error}</strong>
+            <strong className="t-headline">{error}</strong>
           </div>
         </div>
       )}
 
       <form
-        className="chat-form"
+        className="composer"
         onSubmit={(e) => {
           e.preventDefault();
           send(draft);
         }}
       >
         <input
-          className="text-input"
-          placeholder="e.g. I'm going to a party tonight"
+          className="field"
+          placeholder="Where are you going?"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           maxLength={2000}
           disabled={thinking}
         />
-        <button className="primary" type="submit" disabled={thinking || !draft.trim()}>
-          {thinking ? <span className="spinner" /> : "Ask"}
+        <button className="send" type="submit" disabled={thinking || !draft.trim()} aria-label="Ask">
+          {thinking ? <span className="spinner" /> : <Icon name="arrowUp" size={21} strokeWidth={2.1} />}
         </button>
       </form>
-    </div>
+    </Screen>
   );
 }

@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import Screen from "../components/Screen";
+import Icon from "../components/Icon";
+import SettingsSheet from "../components/SettingsSheet";
+import { CATEGORY_ICONS } from "./CapturePage";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
@@ -9,12 +13,6 @@ import {
   type Garment,
 } from "../api";
 
-const CATEGORY_ICONS: Record<Category, string> = {
-  top: "👕",
-  bottom: "👖",
-  shoes: "👟",
-};
-
 type Filter = Category | "all";
 
 export default function WardrobePage() {
@@ -22,13 +20,14 @@ export default function WardrobePage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [settings, setSettings] = useState(false);
 
   async function refresh() {
     try {
       setGarments(await listGarments());
       setError(null);
     } catch {
-      setError("Could not load your wardrobe.");
+      setError("Couldn't reach the server.");
     } finally {
       setLoading(false);
     }
@@ -53,91 +52,87 @@ export default function WardrobePage() {
     return c;
   }, [garments]);
 
+  const settingsAction = (
+    <button
+      className="nav-bar-action"
+      onClick={() => setSettings(true)}
+      aria-label="Settings"
+    >
+      <Icon name="person" size={22} />
+    </button>
+  );
+
   const shown = CATEGORIES.filter((c) => filter === "all" || c === filter);
 
-  if (loading) {
-    return (
-      <div className="page">
-        <header className="page-head">
-          <h1>Wardrobe</h1>
-          <p className="lede">Fetching your pieces…</p>
-        </header>
-        <div className="grid">
+  return (
+    <Screen
+      title="Wardrobe"
+      action={settingsAction}
+      lede={
+        loading
+          ? "Loading your pieces…"
+          : garments.length === 0
+            ? "Every piece you scan lands here."
+            : `${garments.length} ${garments.length === 1 ? "piece" : "pieces"}, cut out and ready to mix.`
+      }
+    >
+      {settings && <SettingsSheet onClose={() => setSettings(false)} />}
+
+      {loading && (
+        <div className="garment-grid">
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="skeleton tile" />
           ))}
         </div>
-      </div>
-    );
-  }
+      )}
 
-  if (error) {
-    return (
-      <div className="page">
-        <h1>Wardrobe</h1>
-        <div className="toast error" role="alert">
-          <span className="toast-icon">⚠️</span>
+      {!loading && error && (
+        <div className="notice is-error" role="alert">
+          <Icon name="alert" size={21} className="notice-icon" />
           <div>
-            <strong>{error}</strong>
-            <p className="muted">Is the server running?</p>
+            <strong className="t-headline">{error}</strong>
+            <p className="t-foot">Check that the app&apos;s server is running.</p>
           </div>
-          <button className="ghost" onClick={refresh}>
+          <button className="btn btn-plain btn-small" onClick={refresh}>
             Retry
           </button>
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="page">
-      <header className="page-head">
-        <h1>Wardrobe</h1>
-        <p className="lede">
-          {garments.length === 0
-            ? "Empty for now — every piece you scan lands here."
-            : `${garments.length} ${garments.length === 1 ? "piece" : "pieces"}, cut out and ready to mix.`}
-        </p>
-      </header>
-
-      {garments.length === 0 ? (
-        <div className="empty-state">
-          <span className="art">🪞</span>
-          <strong>Nothing hanging up yet</strong>
-          <p>
-            Take one full-body photo and we&apos;ll pull the top, bottom and shoes out of
-            it in a single pass.
+      {!loading && !error && garments.length === 0 && (
+        <div className="empty">
+          <span className="empty-icon">
+            <Icon name="hanger" size={28} />
+          </span>
+          <strong className="t-title">Nothing hanging up yet</strong>
+          <p className="t-sub">
+            Photograph one outfit and we&apos;ll pull the top, bottom and shoes out
+            of it in a single pass.
           </p>
           <Link to="/">
-            <button className="primary">Add your first look</button>
+            <button className="btn btn-primary">Add your first look</button>
           </Link>
         </div>
-      ) : (
-        <>
-          <div className="stats">
-            {CATEGORIES.map((c) => (
-              <div className="stat" key={c}>
-                <div className="stat-n">{counts[c]}</div>
-                <div className="stat-l">{CATEGORY_LABELS[c]}</div>
-              </div>
-            ))}
-          </div>
+      )}
 
-          <div className="chips">
+      {!loading && !error && garments.length > 0 && (
+        <>
+          <div className="segmented" style={{ marginBottom: 20 }} role="group" aria-label="Filter">
             <button
-              className={`chip ${filter === "all" ? "active" : ""}`}
+              className={filter === "all" ? "active" : ""}
               onClick={() => setFilter("all")}
             >
-              All <span className="count">{garments.length}</span>
+              All
             </button>
             {CATEGORIES.map((c) => (
               <button
                 key={c}
-                className={`chip ${filter === c ? "active" : ""}`}
+                className={filter === c ? "active" : ""}
                 onClick={() => setFilter(c)}
+                disabled={counts[c] === 0}
               >
-                {CATEGORY_ICONS[c]} {CATEGORY_LABELS[c]}
-                <span className="count">{counts[c]}</span>
+                <Icon name={CATEGORY_ICONS[c]} size={17} />
+                {counts[c]}
               </button>
             ))}
           </div>
@@ -146,28 +141,24 @@ export default function WardrobePage() {
             const items = garments.filter((g) => g.category === category);
             if (items.length === 0) return null;
             return (
-              <section key={category} style={{ marginBottom: 28 }}>
-                <div className="section-head">
-                  <h2>
-                    {CATEGORY_ICONS[category]} {CATEGORY_LABELS[category]}
-                  </h2>
-                  <span className="muted small">{items.length}</span>
-                </div>
-                <div className="grid">
-                  {items.map((g, i) => (
-                    <div
-                      className="garment"
-                      key={g.id}
-                      style={{ animationDelay: `${Math.min(i, 8) * 0.04}s` }}
-                    >
-                      <img src={g.imageUrl} alt={CATEGORY_LABELS[category]} />
-                      <span className="tag">{CATEGORY_ICONS[category]}</span>
+              <section key={category} style={{ marginBottom: 26 }}>
+                <p className="group-title">
+                  {CATEGORY_LABELS[category]} · {items.length}
+                </p>
+                <div className="garment-grid">
+                  {items.map((g) => (
+                    <div className="garment" key={g.id}>
+                      <img
+                        src={g.imageUrl}
+                        alt={g.analysis?.description ?? CATEGORY_LABELS[category]}
+                        loading="lazy"
+                      />
                       <button
-                        className="del"
+                        className="garment-delete"
                         onClick={() => remove(g.id)}
-                        aria-label={`Delete ${CATEGORY_LABELS[category]}`}
+                        aria-label={`Delete ${g.analysis?.description ?? CATEGORY_LABELS[category]}`}
                       >
-                        Delete
+                        <Icon name="trash" size={15} />
                       </button>
                     </div>
                   ))}
@@ -175,16 +166,8 @@ export default function WardrobePage() {
               </section>
             );
           })}
-
-          {shown.every((c) => counts[c] === 0) && (
-            <div className="empty-state">
-              <span className="art">🧺</span>
-              <strong>Nothing in this category yet</strong>
-              <p>Scan a look that includes one.</p>
-            </div>
-          )}
         </>
       )}
-    </div>
+    </Screen>
   );
 }

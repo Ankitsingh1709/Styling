@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Screen from "../components/Screen";
+import Icon from "../components/Icon";
+import BodySilhouette from "../components/BodySilhouette";
+import { useBodyType } from "../lib/bodyType";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
@@ -12,8 +16,6 @@ import {
   type Garment,
   type Outfit,
 } from "../api";
-import BodySilhouette from "../components/BodySilhouette";
-import { useBodyType } from "../lib/bodyType";
 
 type Grouped = Record<Category, Garment[]>;
 type Indices = Record<Category, number>;
@@ -36,14 +38,14 @@ export default function MixerPage() {
 
   useEffect(() => {
     Promise.all([listGarments(), listOutfits()])
-      .then(([garments, savedOutfits]) => {
+      .then(([garments, saved]) => {
         const grouped: Grouped = { top: [], bottom: [], shoes: [] };
         for (const g of garments) grouped[g.category].push(g);
         setGroups(grouped);
-        setOutfits(savedOutfits);
+        setOutfits(saved);
       })
       .catch(() => {
-        setMessage("Could not load your wardrobe.");
+        setMessage("Couldn't reach the server.");
         setFailed(true);
       })
       .finally(() => setLoading(false));
@@ -56,11 +58,8 @@ export default function MixerPage() {
     if (!failed) setMessage(null);
   }
 
-  function current(category: Category): Garment | undefined {
-    return groups[category][idx[category]];
-  }
-
-  const totalGarments = CATEGORIES.reduce((n, c) => n + groups[c].length, 0);
+  const current = (c: Category): Garment | undefined => groups[c][idx[c]];
+  const total = CATEGORIES.reduce((n, c) => n + groups[c].length, 0);
 
   async function save() {
     const sel = {
@@ -83,15 +82,10 @@ export default function MixerPage() {
       setMessage("Outfit saved.");
     } catch (err) {
       setFailed(true);
-      setMessage(err instanceof Error ? err.message : "Save failed");
+      setMessage(err instanceof Error ? err.message : "Couldn't save that outfit.");
     } finally {
       setSaving(false);
     }
-  }
-
-  function startEdit(o: Outfit) {
-    setEditingId(o.id);
-    setDraft(o.name ?? "");
   }
 
   async function commitEdit(id: number) {
@@ -101,7 +95,7 @@ export default function MixerPage() {
       const updated = await renameOutfit(id, value);
       setOutfits((prev) => prev.map((o) => (o.id === id ? updated : o)));
     } catch {
-      /* keep previous name on failure */
+      /* keep the previous name on failure */
     }
   }
 
@@ -116,57 +110,44 @@ export default function MixerPage() {
 
   if (loading) {
     return (
-      <div className="page">
-        <header className="page-head">
-          <h1>Mixer</h1>
-          <p className="lede">Pulling your wardrobe together…</p>
-        </header>
+      <Screen title="Mixer" lede="Pulling your wardrobe together…">
         <div className="skeleton" style={{ height: 420 }} />
-      </div>
+      </Screen>
     );
   }
 
-  if (totalGarments === 0) {
+  if (total === 0) {
     return (
-      <div className="page">
-        <header className="page-head">
-          <h1>Mixer</h1>
-          <p className="lede">Swipe through your pieces to build a look.</p>
-        </header>
+      <Screen title="Mixer" lede="Swipe through your pieces to build a look.">
         {failed && message ? (
-          <div className="toast error" role="alert">
-            <span className="toast-icon">⚠️</span>
+          <div className="notice is-error" role="alert">
+            <Icon name="alert" size={21} className="notice-icon" />
             <div>
-              <strong>{message}</strong>
-              <p className="muted">Is the server running?</p>
+              <strong className="t-headline">{message}</strong>
+              <p className="t-foot">Check that the app&apos;s server is running.</p>
             </div>
           </div>
         ) : (
-        <div className="empty-state">
-          <span className="art">🎛️</span>
-          <strong>No pieces to mix yet</strong>
-          <p>
-            Scan a look first — one photo gives you a top, a bottom and shoes to play
-            with.
-          </p>
-          <Link to="/">
-            <button className="primary">Add garments</button>
-          </Link>
-        </div>
+          <div className="empty">
+            <span className="empty-icon">
+              <Icon name="sliders" size={28} />
+            </span>
+            <strong className="t-title">No pieces to mix yet</strong>
+            <p className="t-sub">
+              Scan a look first — one photo gives you a top, a bottom and shoes to
+              play with.
+            </p>
+            <Link to="/">
+              <button className="btn btn-primary">Add garments</button>
+            </Link>
+          </div>
         )}
-      </div>
+      </Screen>
     );
   }
 
   return (
-    <div className="page">
-      <header className="page-head">
-        <h1>Mixer</h1>
-        <p className="lede">
-          Arrow through each layer to build a look, then name it and save.
-        </p>
-      </header>
-
+    <Screen title="Mixer" lede="Arrow through each layer, then name the look and save it.">
       <div className="outfit">
         {bodyType && <BodySilhouette gender={bodyType} className="body-silhouette" />}
         {CATEGORIES.map((category) => {
@@ -179,29 +160,31 @@ export default function MixerPage() {
                   className="arrow"
                   onClick={() => cycle(category, -1)}
                   disabled={items.length < 2}
-                  aria-label={`Previous ${category}`}
+                  aria-label={`Previous ${CATEGORY_LABELS[category].toLowerCase()}`}
                 >
-                  ‹
+                  <Icon name="chevronLeft" size={20} strokeWidth={2} />
                 </button>
                 <div className="slot">
                   {g ? (
-                    <img src={g.imageUrl} alt={category} />
+                    <img src={g.imageUrl} alt={g.analysis?.description ?? category} />
                   ) : (
-                    <span className="empty">No {CATEGORY_LABELS[category].toLowerCase()} yet</span>
+                    <span className="placeholder">
+                      No {CATEGORY_LABELS[category].toLowerCase()} yet
+                    </span>
                   )}
                 </div>
                 <button
                   className="arrow"
                   onClick={() => cycle(category, 1)}
                   disabled={items.length < 2}
-                  aria-label={`Next ${category}`}
+                  aria-label={`Next ${CATEGORY_LABELS[category].toLowerCase()}`}
                 >
-                  ›
+                  <Icon name="chevronRight" size={20} strokeWidth={2} />
                 </button>
               </div>
               <p className="mix-caption" style={{ textAlign: "center" }}>
                 {CATEGORY_LABELS[category]}
-                {items.length > 0 && ` · ${idx[category] + 1}/${items.length}`}
+                {items.length > 0 && ` · ${idx[category] + 1} of ${items.length}`}
               </p>
             </div>
           );
@@ -209,16 +192,16 @@ export default function MixerPage() {
       </div>
 
       <input
-        className="text-input"
+        className="field"
         style={{ marginTop: 16 }}
-        placeholder="Name this outfit (optional) — e.g. Casual Friday"
+        placeholder="Name this look (optional)"
         value={name}
         onChange={(e) => setName(e.target.value)}
         maxLength={60}
       />
       <button
-        className="primary"
-        style={{ width: "100%", marginTop: 10 }}
+        className="btn btn-primary btn-block"
+        style={{ marginTop: 10 }}
         onClick={save}
         disabled={saving}
       >
@@ -227,37 +210,39 @@ export default function MixerPage() {
 
       {message && (
         <div
-          className={`toast ${failed ? "error" : "success"}`}
+          className={`notice ${failed ? "is-error" : ""}`}
           style={{ marginTop: 14 }}
           role="status"
         >
-          <span className="toast-icon">{failed ? "⚠️" : "👗"}</span>
+          <Icon name={failed ? "alert" : "check"} size={21} className="notice-icon" />
           <div>
-            <strong>{message}</strong>
+            <strong className="t-headline">{message}</strong>
           </div>
         </div>
       )}
 
       {outfits.length > 0 && (
-        <section style={{ marginTop: 32 }}>
-          <div className="section-head">
-            <h2>Saved outfits</h2>
-            <span className="muted small">{outfits.length}</span>
-          </div>
-          <div className="outfit-thumbs">
+        <section style={{ marginTop: 30 }}>
+          <p className="group-title">Saved outfits · {outfits.length}</p>
+          <div className="outfit-grid">
             {outfits.map((o) => (
-              <div className="outfit-thumb" key={o.id}>
+              <div className="outfit-card" key={o.id}>
                 <div className="stack">
-                  {o.top && <img src={o.top.imageUrl} alt="top" />}
-                  {o.bottom && <img src={o.bottom.imageUrl} alt="bottom" />}
-                  {o.shoes && <img src={o.shoes.imageUrl} alt="shoes" />}
+                  {o.top && <img src={o.top.imageUrl} alt="" />}
+                  {o.bottom && <img src={o.bottom.imageUrl} alt="" />}
+                  {o.shoes && <img src={o.shoes.imageUrl} alt="" />}
                 </div>
-                <button className="del" onClick={() => removeOutfit(o.id)}>
-                  ✕
+                <button
+                  className="remove"
+                  onClick={() => removeOutfit(o.id)}
+                  aria-label={`Delete ${o.name ?? "outfit"}`}
+                >
+                  <Icon name="close" size={13} strokeWidth={2.2} />
                 </button>
                 {editingId === o.id ? (
                   <input
-                    className="thumb-name-input"
+                    className="field"
+                    style={{ minHeight: 30, padding: "4px 6px", fontSize: "0.6875rem", marginTop: 5 }}
                     value={draft}
                     autoFocus
                     maxLength={60}
@@ -269,8 +254,15 @@ export default function MixerPage() {
                     }}
                   />
                 ) : (
-                  <button className="thumb-name-btn" onClick={() => startEdit(o)}>
-                    {o.name ? o.name : "＋ name"}
+                  <button
+                    className="name"
+                    style={{ background: "none", border: "none", width: "100%" }}
+                    onClick={() => {
+                      setEditingId(o.id);
+                      setDraft(o.name ?? "");
+                    }}
+                  >
+                    {o.name ?? "Add a name"}
                   </button>
                 )}
               </div>
@@ -278,6 +270,6 @@ export default function MixerPage() {
           </div>
         </section>
       )}
-    </div>
+    </Screen>
   );
 }
