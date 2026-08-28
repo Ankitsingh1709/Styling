@@ -1,0 +1,28 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Server runtime data (not source)
+server/storage/
+server/data/
+
+# Logs / env
+*.log
+.env
+.env.local
+.DS_Store
+
+# Installed agent skills (re-installable via their npx installers; .claude/skills
+# are symlinks into .agents, which don't travel well through git)
+.agents/
+.claude/
+.codex/
+
+# Scratch images dropped in the repo root during testing
+/*.webp
+/image.png
+
+# Internal product record — read by the design skills from disk, deliberately
+# not published (it inventories gaps, undecided facts and strategy).
+PRODUCT.md
