@@ -26,3 +26,6 @@ server/data/
 # Internal product record — read by the design skills from disk, deliberately
 # not published (it inventories gaps, undecided facts and strategy).
 PRODUCT.md
+
+# Design-review artifacts (screenshots, comps) — regenerated, not source
+.impeccable/

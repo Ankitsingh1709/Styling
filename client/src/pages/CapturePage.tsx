@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Screen from "../components/Screen";
+import Icon, { type IconName } from "../components/Icon";
 import CameraCapture from "../components/CameraCapture";
 import {
   extractAllGarments,
@@ -13,10 +15,10 @@ type Stage = "choose" | "camera" | "review";
 /** "look" = one full-body photo → every piece. "item" = one garment, one category. */
 type Mode = "look" | "item";
 
-const CATEGORY_ICONS: Record<Category, string> = {
-  top: "👕",
-  bottom: "👖",
-  shoes: "👟",
+export const CATEGORY_ICONS: Record<Category, IconName> = {
+  top: "shirt",
+  bottom: "trousers",
+  shoes: "shoe",
 };
 
 export default function CapturePage() {
@@ -28,11 +30,9 @@ export default function CapturePage() {
   const [original, setOriginal] = useState<Blob | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  // Single-item mode
   const [extracted, setExtracted] = useState<Blob | null>(null);
   const [category, setCategory] = useState<Category>("top");
 
-  // Full-look mode
   const [pieces, setPieces] = useState<ExtractedPiece[] | null>(null);
   const [skipped, setSkipped] = useState<Set<Category>>(new Set());
 
@@ -42,40 +42,26 @@ export default function CapturePage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<number | null>(null);
 
-  // Object URL for the source photo; revoked when it changes.
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!original) {
-      setPhotoUrl(null);
-      return;
-    }
+    if (!original) return setPhotoUrl(null);
     const url = URL.createObjectURL(original);
     setPhotoUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [original]);
 
-  // Object URL for the single-item cutout.
   const [cutUrl, setCutUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!extracted) {
-      setCutUrl(null);
-      return;
-    }
+    if (!extracted) return setCutUrl(null);
     const url = URL.createObjectURL(extracted);
     setCutUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [extracted]);
 
-  // Object URLs for every detected piece.
   const [pieceUrls, setPieceUrls] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!pieces) {
-      setPieceUrls({});
-      return;
-    }
-    const urls = Object.fromEntries(
-      pieces.map((p) => [p.category, URL.createObjectURL(p.blob)]),
-    );
+    if (!pieces) return setPieceUrls({});
+    const urls = Object.fromEntries(pieces.map((p) => [p.category, URL.createObjectURL(p.blob)]));
     setPieceUrls(urls);
     return () => Object.values(urls).forEach(URL.revokeObjectURL);
   }, [pieces]);
@@ -113,7 +99,7 @@ export default function CapturePage() {
 
   function pickCategory(c: Category) {
     setCategory(c);
-    setExtracted(null); // require a re-extract for the new category (cached → fast)
+    setExtracted(null); // re-extract for the new category (cached → fast)
     setError(null);
   }
 
@@ -130,11 +116,8 @@ export default function CapturePage() {
     setProgress(0);
     setError(null);
     try {
-      if (mode === "look") {
-        setPieces(await extractAllGarments(original, setProgress));
-      } else {
-        setExtracted(await extractGarment(original, category, setProgress));
-      }
+      if (mode === "look") setPieces(await extractAllGarments(original, setProgress));
+      else setExtracted(await extractGarment(original, category, setProgress));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Extraction failed");
     } finally {
@@ -150,8 +133,7 @@ export default function CapturePage() {
   function toggle(c: Category) {
     setSkipped((prev) => {
       const next = new Set(prev);
-      if (next.has(c)) next.delete(c);
-      else next.add(c);
+      next.has(c) ? next.delete(c) : next.add(c);
       return next;
     });
   }
@@ -177,8 +159,6 @@ export default function CapturePage() {
       reset();
     } catch (err) {
       const failed = err instanceof Error ? err.message : "Save failed";
-      // Anything already committed server-side is dropped from the pending set,
-      // so retrying can't save the same piece twice.
       if (done.length > 0) {
         setPieces((prev) => prev?.filter((p) => !done.includes(p.category)) ?? null);
         setError(`${failed} — ${done.length} piece(s) saved, the rest are still here.`);
@@ -190,67 +170,62 @@ export default function CapturePage() {
     }
   }
 
-  const busyLabel = progress > 0 && progress < 1 ? "Downloading the AI model" : "Reading the photo";
+  const missing = pieces
+    ? CATEGORIES.filter((c) => !pieces.some((p) => p.category === c))
+    : [];
 
   return (
-    <div className="page">
-      <header className="page-head">
-        <h1>Add to wardrobe</h1>
-        <p className="lede">
-          Drop in a full-body photo and we&apos;ll lift out the top, the bottom and the
-          shoes as separate pieces — background and body removed.
-        </p>
-      </header>
-
+    <Screen
+      title="Capture"
+      lede="Photograph a whole outfit and we'll lift the top, the bottom and the shoes out of it as separate pieces."
+    >
       {saved !== null && (
-        <div className="toast success" role="status">
-          <span className="toast-icon">✨</span>
+        <div className="notice" style={{ marginBottom: 18 }} role="status">
+          <Icon name="check" size={21} className="notice-icon" />
           <div>
-            <strong>{saved === 1 ? "1 piece" : `${saved} pieces`} added</strong>
-            <p className="muted">Your wardrobe just grew.</p>
+            <strong className="t-headline">
+              {saved === 1 ? "1 piece added" : `${saved} pieces added`}
+            </strong>
+            <p className="t-foot">Your wardrobe just grew.</p>
           </div>
-          <button className="ghost" onClick={() => navigate("/wardrobe")}>
+          <button className="btn btn-plain btn-small" onClick={() => navigate("/wardrobe")}>
             View
           </button>
         </div>
       )}
 
       {error && (
-        <div className="toast error" role="alert">
-          <span className="toast-icon">⚠️</span>
+        <div className="notice is-error" style={{ marginBottom: 18 }} role="alert">
+          <Icon name="alert" size={21} className="notice-icon" />
           <div>
-            <strong>Didn&apos;t work</strong>
-            <p className="muted">{error}</p>
+            <strong className="t-headline">That didn&apos;t work</strong>
+            <p className="t-foot">{error}</p>
           </div>
         </div>
       )}
 
       {stage !== "camera" && (
-        <div className="mode-switch">
+        <div className="segmented" style={{ marginBottom: 18 }} role="group" aria-label="Capture mode">
           <button
             className={mode === "look" ? "active" : ""}
             onClick={() => pickMode("look")}
             disabled={extracting}
           >
-            <span className="mode-emoji">🧍</span>
-            <span className="mode-title">Full look</span>
-            <span className="mode-sub">One photo → every piece</span>
+            Full look
           </button>
           <button
             className={mode === "item" ? "active" : ""}
             onClick={() => pickMode("item")}
             disabled={extracting}
           >
-            <span className="mode-emoji">🧺</span>
-            <span className="mode-title">Single item</span>
-            <span className="mode-sub">Just one garment</span>
+            Single item
           </button>
         </div>
       )}
 
       {stage === "choose" && (
         <>
-          <div
+          <button
             className={`dropzone ${dragging ? "dragging" : ""}`}
             onDragOver={(e) => {
               e.preventDefault();
@@ -259,25 +234,20 @@ export default function CapturePage() {
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
           >
-            <div className="dropzone-art" aria-hidden="true">
-              <span>👕</span>
-              <span>👖</span>
-              <span>👟</span>
-            </div>
-            <strong>Drop a photo here</strong>
-            <p className="muted">or click to browse — JPG, PNG, HEIC</p>
-          </div>
+            <Icon name="photo" size={30} />
+            <span className="t-headline">Drop a photo, or choose one</span>
+            <span className="t-foot hint">
+              {mode === "look"
+                ? "A full-body shot works best — plain wall, good light."
+                : "One garment, laid flat or worn."}
+            </span>
+          </button>
 
-          <div className="row">
-            <button className="primary grow" onClick={() => setStage("camera")}>
-              📸 Use camera
-            </button>
-            <button className="grow" onClick={() => fileInputRef.current?.click()}>
-              Choose file
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn btn-primary grow" onClick={() => setStage("camera")}>
+              <Icon name="camera" size={20} />
+              Use camera
             </button>
           </div>
 
@@ -293,20 +263,9 @@ export default function CapturePage() {
             }}
           />
 
-          <ol className="steps">
-            <li>
-              <span className="step-n">1</span> Photograph your outfit — full body, plain
-              wall works best.
-            </li>
-            <li>
-              <span className="step-n">2</span> We cut each garment out on your device.
-              Nothing leaves the browser until you save.
-            </li>
-            <li>
-              <span className="step-n">3</span> Mix pieces into outfits and plan them on
-              the calendar.
-            </li>
-          </ol>
+          <p className="t-foot secondary measure" style={{ marginTop: 22 }}>
+            Everything is cut out on your device. Nothing is uploaded until you save.
+          </p>
         </>
       )}
 
@@ -316,34 +275,31 @@ export default function CapturePage() {
 
       {stage === "review" && photoUrl && (
         <>
-          <div className={`shot ${extracting ? "scanning" : ""}`}>
-            <img
-              src={mode === "item" && cutUrl ? cutUrl : photoUrl}
-              className="preview"
-              alt="photo preview"
-            />
-            {extracting && <div className="scanline" aria-hidden="true" />}
+          <div className="shot">
+            <img src={mode === "item" && cutUrl ? cutUrl : photoUrl} alt="" />
+            {extracting && <div className="scan-veil" />}
           </div>
 
           {extracting && (
-            <div className="progress-wrap">
+            <div style={{ marginTop: 14 }}>
               <div className="progress">
                 <div
                   className="progress-bar"
                   style={{ width: `${Math.max(6, Math.round(progress * 100))}%` }}
                 />
               </div>
-              <p className="muted small">
-                {busyLabel}… {progress > 0 ? `${Math.round(progress * 100)}%` : ""} — the
-                model downloads once, then it&apos;s instant.
+              <p className="t-foot secondary" style={{ marginTop: 8 }}>
+                {progress > 0 && progress < 1
+                  ? `Downloading the model — ${Math.round(progress * 100)}%. This happens once.`
+                  : "Reading the photo…"}
               </p>
             </div>
           )}
 
           {mode === "item" && (
             <>
-              <p className="field-label">Which part is it?</p>
-              <div className="segmented">
+              <p className="group-title" style={{ marginTop: 20 }}>Which part is it?</p>
+              <div className="segmented" role="group" aria-label="Category">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c}
@@ -351,7 +307,8 @@ export default function CapturePage() {
                     onClick={() => pickCategory(c)}
                     disabled={extracting}
                   >
-                    {CATEGORY_ICONS[c]} {CATEGORY_LABELS[c]}
+                    <Icon name={CATEGORY_ICONS[c]} size={17} />
+                    {CATEGORY_LABELS[c]}
                   </button>
                 ))}
               </div>
@@ -359,10 +316,9 @@ export default function CapturePage() {
           )}
 
           {mode === "look" && pieces && (
-            <section className="found">
-              <p className="field-label">
-                Found {pieces.length} {pieces.length === 1 ? "piece" : "pieces"} — tap to
-                exclude any you don&apos;t want.
+            <section style={{ marginTop: 20 }}>
+              <p className="group-title">
+                Found {pieces.length} {pieces.length === 1 ? "piece" : "pieces"} — tap one to leave it out
               </p>
               <div className="piece-grid">
                 {pieces.map((p) => {
@@ -370,87 +326,74 @@ export default function CapturePage() {
                   return (
                     <button
                       key={p.category}
-                      className={`piece ${off ? "off" : ""}`}
+                      className={`piece ${off ? "excluded" : ""}`}
                       onClick={() => toggle(p.category)}
                       aria-pressed={!off}
                     >
-                      <span className="piece-check">{off ? "＋" : "✓"}</span>
-                      <img src={pieceUrls[p.category]} alt={CATEGORY_LABELS[p.category]} />
-                      <span className="piece-label">
-                        {CATEGORY_ICONS[p.category]} {CATEGORY_LABELS[p.category]}
+                      <span className="tick">
+                        <Icon name={off ? "plus" : "check"} size={13} strokeWidth={2.4} />
                       </span>
+                      <img src={pieceUrls[p.category]} alt={CATEGORY_LABELS[p.category]} />
+                      <span className="piece-name">{CATEGORY_LABELS[p.category]}</span>
                     </button>
                   );
                 })}
               </div>
-              {CATEGORIES.filter((c) => !pieces.some((p) => p.category === c)).length > 0 && (
-                <p className="muted small">
-                  Not spotted:{" "}
-                  {CATEGORIES.filter((c) => !pieces.some((p) => p.category === c))
-                    .map((c) => CATEGORY_LABELS[c].toLowerCase())
-                    .join(", ")}
-                  . Try a shot where the whole outfit is visible.
+              {missing.length > 0 && (
+                <p className="t-foot secondary" style={{ marginTop: 10 }}>
+                  No {missing.map((c) => CATEGORY_LABELS[c].toLowerCase()).join(" or ")} found.
+                  Try a shot where the whole outfit is visible.
                 </p>
               )}
             </section>
           )}
 
-          <div className="row sticky-actions">
+          <div className="row" style={{ marginTop: 18 }}>
             {mode === "look" ? (
               !pieces ? (
                 <>
-                  <button className="primary grow" onClick={run} disabled={extracting}>
-                    {extracting ? (
-                      <>
-                        <span className="spinner" />
-                        Scanning…
-                      </>
-                    ) : (
-                      "✨ Scan for pieces"
-                    )}
+                  <button className="btn btn-primary grow" onClick={run} disabled={extracting}>
+                    {extracting ? <span className="spinner" /> : <Icon name="sparkles" size={20} />}
+                    {extracting ? "Scanning…" : "Scan for pieces"}
                   </button>
-                  <button onClick={reset} disabled={extracting}>
+                  <button className="btn" onClick={reset} disabled={extracting}>
                     Retake
                   </button>
                 </>
               ) : (
                 <>
                   <button
-                    className="primary grow"
+                    className="btn btn-primary grow"
                     onClick={save}
                     disabled={saving || keeping.length === 0}
                   >
                     {saving
                       ? "Saving…"
-                      : `Add ${keeping.length} ${keeping.length === 1 ? "piece" : "pieces"} to wardrobe`}
+                      : `Add ${keeping.length} ${keeping.length === 1 ? "piece" : "pieces"}`}
                   </button>
-                  <button onClick={reset} disabled={saving}>
+                  <button className="btn" onClick={reset} disabled={saving}>
                     Discard
                   </button>
                 </>
               )
             ) : !extracted ? (
               <>
-                <button className="primary grow" onClick={run} disabled={extracting}>
-                  {extracting ? (
-                    <>
-                      <span className="spinner" />
-                      Extracting… {Math.round(progress * 100)}%
-                    </>
-                  ) : (
-                    `Extract ${CATEGORY_LABELS[category].toLowerCase()}`
-                  )}
+                <button className="btn btn-primary grow" onClick={run} disabled={extracting}>
+                  {extracting ? <span className="spinner" /> : null}
+                  {extracting
+                    ? `Extracting… ${Math.round(progress * 100)}%`
+                    : `Extract ${CATEGORY_LABELS[category].toLowerCase()}`}
                 </button>
-                <button onClick={reset} disabled={extracting}>
+                <button className="btn" onClick={reset} disabled={extracting}>
                   Retake
                 </button>
               </>
             ) : (
               <>
-                <button className="primary grow" onClick={save} disabled={saving}>
+                <button className="btn btn-primary grow" onClick={save} disabled={saving}>
                   {saving ? "Saving…" : "Save to wardrobe"}
                 </button>
-                <button onClick={reset} disabled={saving}>
+                <button className="btn" onClick={reset} disabled={saving}>
                   Discard
                 </button>
               </>
@@ -458,6 +401,6 @@ export default function CapturePage() {
           </div>
         </>
       )}
-    </div>
+    </Screen>
   );
 }

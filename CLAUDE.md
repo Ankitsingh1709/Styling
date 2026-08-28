@@ -223,16 +223,24 @@ purely a client-side display preference — not sent to or stored on the server.
 Outfit rename is `PATCH /api/outfits/:id` (`renameOutfit` in `api.ts`); an empty/
 whitespace name clears it back to null.
 
-### Styling
-One stylesheet, `client/src/index.css`, holds the whole visual system: CSS custom
-properties at `:root` (palette, radii, shadows, the `--grad` violet→pink accent used
-by every primary control), then component classes. The dark ground is lit by two
-animated aurora blobs on `body::before/::after`; surfaces are translucent + blurred
-(`--surface` + `backdrop-filter`). Shared building blocks worth reusing before adding
-new ones: `.page-head`/`.lede`, `.toast` (`.success`/`.error`), `.card`,
-`.empty-state`, `.stats`/`.stat`, `.chips`/`.chip`, `.segmented`, `.skeleton`, and the
-`pop-in` / `page-in` / `shimmer` keyframes. Everything animated is disabled under
-`prefers-reduced-motion`.
+### Styling (redesigned — see DESIGN.md)
+`client/src/index.css` holds the whole visual system, rebuilt on the
+`redesign/apple-adaptive` branch as a phone-native surface following iOS
+conventions, so the planned React Native port is a translation rather than
+another redesign. **`DESIGN.md` is the authority** — tokens, type scale, motion
+rules and the reasoning behind them.
+
+The shell: `components/Screen.tsx` (large title collapsing to an inline bar
+title on scroll), `components/TabBar.tsx` (5 top-level sections — the burger
+drawer is gone, and `SideNav.tsx` with it), `components/Sheet.tsx` (focused
+sub-tasks), `components/SettingsSheet.tsx` (appearance + body shape).
+
+Two rules that are easy to break:
+- **Icons are drawn, never emoji.** `components/Icon.tsx` is the single source:
+  authored SVG on a 24px grid, one stroke weight, `currentColor`.
+- **Light and dark are both first-class.** `lib/appearance.ts` manages
+  system/light/dark and stamps `data-appearance` on `<html>`; every colour is a
+  token defined in both. Never hard-code a hex in a component.
 
 ### Display vs. storage: transparent PNG, white background
 Stored garment PNGs are **transparent** (so the mixer can stack top+bottom+shoes into
