@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Screen from "../components/Screen";
 import Icon from "../components/Icon";
 import BodySilhouette from "../components/BodySilhouette";
+import MixStrip from "../components/MixStrip";
 import { useBodyType } from "../lib/bodyType";
 import {
   CATEGORIES,
@@ -51,10 +52,8 @@ export default function MixerPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  function cycle(category: Category, dir: 1 | -1) {
-    const len = groups[category].length;
-    if (len === 0) return;
-    setIdx((prev) => ({ ...prev, [category]: (prev[category] + dir + len) % len }));
+  function selectIndex(category: Category, next: number) {
+    setIdx((prev) => (prev[category] === next ? prev : { ...prev, [category]: next }));
     if (!failed) setMessage(null);
   }
 
@@ -147,41 +146,19 @@ export default function MixerPage() {
   }
 
   return (
-    <Screen title="Mixer" lede="Arrow through each layer, then name the look and save it.">
+    <Screen title="Mixer" lede="Swipe each layer to the piece you want, then name the look and save it.">
       <div className="outfit">
         {bodyType && <BodySilhouette gender={bodyType} className="body-silhouette" />}
         {CATEGORIES.map((category) => {
           const items = groups[category];
-          const g = current(category);
           return (
             <div key={category} style={{ width: "100%" }}>
-              <div className={`mix-row ${category}`}>
-                <button
-                  className="arrow"
-                  onClick={() => cycle(category, -1)}
-                  disabled={items.length < 2}
-                  aria-label={`Previous ${CATEGORY_LABELS[category].toLowerCase()}`}
-                >
-                  <Icon name="chevronLeft" size={20} strokeWidth={2} />
-                </button>
-                <div className="slot">
-                  {g ? (
-                    <img src={g.imageUrl} alt={g.analysis?.description ?? category} />
-                  ) : (
-                    <span className="placeholder">
-                      No {CATEGORY_LABELS[category].toLowerCase()} yet
-                    </span>
-                  )}
-                </div>
-                <button
-                  className="arrow"
-                  onClick={() => cycle(category, 1)}
-                  disabled={items.length < 2}
-                  aria-label={`Next ${CATEGORY_LABELS[category].toLowerCase()}`}
-                >
-                  <Icon name="chevronRight" size={20} strokeWidth={2} />
-                </button>
-              </div>
+              <MixStrip
+                items={items}
+                category={category}
+                index={idx[category]}
+                onIndexChange={(i) => selectIndex(category, i)}
+              />
               <p className="mix-caption" style={{ textAlign: "center" }}>
                 {CATEGORY_LABELS[category]}
                 {items.length > 0 && ` · ${idx[category] + 1} of ${items.length}`}
