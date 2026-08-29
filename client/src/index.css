@@ -688,36 +688,143 @@ button {
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 6px;
   width: 100%;
-  padding: 0 6px;
 }
-.mix-row .slot {
+/* The arrows float over the strip rather than sitting beside it: inline they
+   ate a quarter of the row, leaving the neighbouring garments as a sliver when
+   seeing them is the whole point. They sit above content already dimmed to
+   0.45, so they don't hide anything the eye is reading. */
+.mix-row .arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  translate: 0 -50%;
+  backdrop-filter: blur(6px);
+}
+.mix-row .arrow:first-child {
+  left: 2px;
+}
+.mix-row .arrow:last-child {
+  right: 2px;
+}
+.mix-row.top .mix-strip,
+.mix-row.top .mix-item {
+  height: 186px;
+}
+.mix-row.bottom .mix-strip,
+.mix-row.bottom .mix-item {
+  height: 178px;
+}
+.mix-row.shoes .mix-strip,
+.mix-row.shoes .mix-item {
+  height: 78px;
+}
+/* Each layer is a horizontal snap carousel. The strip carries the platform's
+   own scroll physics — momentum, velocity handoff, rubber-banding — so there is
+   no hand-rolled drag to go wrong. */
+.mix-strip {
   flex: 1;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.mix-strip::-webkit-scrollbar {
+  display: none;
+}
+/* Spacers, not padding, so the first and last garment can reach dead centre.
+   Percentage padding resolves against the containing block while a percentage
+   flex-basis resolves against the flex container's content box — mixing the two
+   leaves every item a few percent off centre, and the snap point with it.
+   As flex items these share the items' own base: 22 + 56 + 22 = 100. The
+   gutters are wider than the arrows so a neighbour still shows past them. */
+.mix-strip::before,
+.mix-strip::after {
+  content: "";
+  flex: 0 0 22%;
+}
+.mix-strip.is-empty::before,
+.mix-strip.is-empty::after {
+  content: none;
+}
+.mix-strip.is-empty {
+  justify-content: center;
+  padding-inline: 0;
+  overflow: hidden;
+}
+.mix-item {
+  flex: 0 0 56%;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  scroll-snap-align: center;
+  transform-origin: center;
 }
-.mix-row .slot img {
+.mix-item img {
   max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
-.mix-row.top .slot,
-.mix-row.top .slot img {
-  height: 186px;
-  max-height: 186px;
+.mix-item:active {
+  transform: scale(0.97);
 }
-.mix-row.bottom .slot,
-.mix-row.bottom .slot img {
-  height: 178px;
-  max-height: 178px;
+
+/* The centre pops and the neighbours recede, tracked continuously to the
+   finger. Animates the `scale` property, not `transform`, so the press
+   feedback above still composes on top. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .mix-item {
+      animation: mix-focus linear both;
+      animation-timeline: view(inline);
+    }
+  }
 }
-.mix-row.shoes .slot,
-.mix-row.shoes .slot img {
-  height: 78px;
-  max-height: 78px;
+@keyframes mix-focus {
+  0%,
+  100% {
+    scale: 0.72;
+    opacity: 0.45;
+  }
+  50% {
+    scale: 1;
+    opacity: 1;
+  }
 }
-.mix-row .slot .placeholder {
+
+/* Selection must never depend on the animation: scroll timelines aren't
+   everywhere, and the effect is off under reduced motion. These two blocks are
+   mutually exclusive with the one above, so they can never double up. */
+@supports not (animation-timeline: view()) {
+  .mix-item {
+    scale: 0.78;
+    opacity: 0.5;
+    transition: scale 0.25s var(--ease-out), opacity 0.25s var(--ease-out);
+  }
+  .mix-item.is-selected {
+    scale: 1;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mix-item {
+    scale: 0.78;
+    opacity: 0.5;
+  }
+  .mix-item.is-selected {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+.mix-row .placeholder {
   color: #8a8a90;
   font-size: 0.8125rem;
 }

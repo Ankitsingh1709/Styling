@@ -225,9 +225,11 @@ garment empties that slot but keeps the outfit); `wears` reference outfits
 first-run onboarding modal, and defines routes + the persistent `SideNav` (top-left
 burger → slide-in left drawer; no bottom nav — the top-bar title reflects the active
 route via `useLocation`). Pages: `CapturePage` (mode switch → capture/drop → scan → save one or many),
-`WardrobePage` (per-category counts, filter chips, grid by category), `MixerPage` (three left/right carousels stacked
-into a live outfit on white; a `BodySilhouette` shows faintly behind them; optional
-name on save; saved outfits rename inline and delete), and `CalendarPage` (month
+`WardrobePage` (per-category counts, filter chips, grid by category), `MixerPage` (three horizontal snap
+carousels — `components/MixStrip.tsx` — stacked into a live outfit on white; the
+centred garment is full size with its neighbours peeking, dimmed, at the sides; a
+`BodySilhouette` shows faintly behind them; optional name on save; saved outfits
+rename inline and delete), and `CalendarPage` (month
 grid; a dot + mini thumbnail mark days with a stored outfit; tap a day to assign one
 — `wears` is keyed by date, one outfit per day, upserted), and `StylistPage` (chat
 with the AI stylist; a suggestion renders as a real image stack with **Wear it today**

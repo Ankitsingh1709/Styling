@@ -70,7 +70,7 @@ not an icon system.
 
 ## Motion
 
-Two authored moments, and no scattered third:
+Three authored moments, and no scattered fourth:
 
 1. **The scan sweep** over the photo while the model reads it — the only motion
    that runs on its own.
@@ -87,6 +87,28 @@ Two authored moments, and no scattered third:
    tiles' own press feedback. Where the browser has no scroll timelines nothing
    animates and everything stays fully visible. Not applied to the calendar:
    blurring dates would obscure the task.
+
+3. **The mixer's centre falloff** (`.mix-item`). Each layer of the outfit is a
+   horizontal snap carousel; the centred garment is full size and opaque, its
+   neighbours recede to `scale .72 / opacity .45` at the strip's edges. Browsing
+   a wardrobe is a comparison task, so seeing what's next matters more than a
+   tidy single slot.
+
+   Same scroll-driven technique as (2), on the inline axis. The strip is real
+   overflow scrolling with `scroll-snap-type: x mandatory`, so momentum,
+   velocity handoff, interruption mid-flick and rubber-banding all come from the
+   platform rather than a hand-rolled drag.
+
+   **Selection never depends on the animation.** The tracked index also sets
+   `.is-selected` + `aria-current`, and mutually-exclusive `@supports not
+   (animation-timeline: view())` / reduced-motion blocks style the selection
+   statically — otherwise the only cue for "which garment am I about to save"
+   would vanish on an unsupported browser.
+
+   Gutters are flex spacers, not padding: percentage padding resolves against
+   the containing block while a percentage flex-basis resolves against the flex
+   container's content box, so mixing them left every snap point a few percent
+   off centre.
 
 Everything else moves only in response to touch. Exponential ease-out
 (`--ease-out`) from an already-visible default. `prefers-reduced-motion` cuts
