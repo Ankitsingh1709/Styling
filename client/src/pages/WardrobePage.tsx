@@ -100,7 +100,7 @@ export default function WardrobePage() {
       )}
 
       {loading && (
-        <div className="garment-grid">
+        <div className="garment-grid soften-at-edges">
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="skeleton tile" />
           ))}
@@ -166,7 +166,7 @@ export default function WardrobePage() {
                 <p className="group-title">
                   {CATEGORY_LABELS[category]} · {items.length}
                 </p>
-                <div className="garment-grid">
+                <div className="garment-grid soften-at-edges">
                   {items.map((g) => (
                     <button
                       className="garment"

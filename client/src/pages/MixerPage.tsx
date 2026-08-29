@@ -224,7 +224,7 @@ export default function MixerPage() {
       {outfits.length > 0 && (
         <section style={{ marginTop: 30 }}>
           <p className="group-title">Saved outfits · {outfits.length}</p>
-          <div className="outfit-grid">
+          <div className="outfit-grid soften-at-edges">
             {outfits.map((o) => (
               <div className="outfit-card" key={o.id}>
                 <div className="stack">

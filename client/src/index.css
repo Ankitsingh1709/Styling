@@ -850,6 +850,45 @@ button {
   color: var(--label-2);
 }
 
+/* ---- Softening at the scroll edges ----
+   Both bars are translucent, so content slides *under* them. Left alone it
+   hard-clips at the blur line; easing it out as it arrives makes the bars read
+   as glass over depth rather than a cut.
+
+   Scroll-driven, so it tracks the finger exactly and runs off the main thread.
+   Kept deliberately slight — this is list navigation, seen dozens of times a
+   day, where motion earns its place only by being near-imperceptible.
+
+   Animates the `scale` property rather than `transform`, so the tiles' own
+   `:active` press feedback still composes on top. Where the browser has no
+   scroll timelines nothing animates and everything stays fully visible. */
+.soften-at-edges > * {
+  transform-origin: center;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .soften-at-edges > * {
+      animation: edge-soften linear both;
+      /* Insets match the bars, so an item is crisp the moment it clears them. */
+      animation-timeline: view(block 52px 88px);
+    }
+  }
+}
+@keyframes edge-soften {
+  0%,
+  100% {
+    opacity: 0.5;
+    scale: 0.95;
+    filter: blur(2px);
+  }
+  14%,
+  86% {
+    opacity: 1;
+    scale: 1;
+    filter: blur(0);
+  }
+}
+
 /* The one authored motion moment: the scan sweeping the photo while the
    model reads it. Everything else in the app moves only on interaction. */
 .scan-veil {
