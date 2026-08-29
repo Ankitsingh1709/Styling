@@ -174,6 +174,29 @@ server writes the PNG to `server/storage/<uuid>.png` and a metadata row to SQLit
 then serves images back at `/storage/<file>`. `WardrobePage` reads `GET /api/garments`
 and renders by category.
 
+### Fixing a garment the extractor got wrong
+Extraction mis-files things often enough to matter (a jacket tied round the
+waist comes back as a `bottom`), and the stylist reasons from the stored
+*description*, not the image — so a bad tag skews every later suggestion. The
+wardrobe tile opens `components/GarmentSheet.tsx`, which offers:
+
+- `PATCH /api/garments/:id` `{category}` — re-file it. **This also nulls the
+  outfit slot that referenced the garment under its old category**, otherwise an
+  outfit would keep rendering shoes on the torso. Same reasoning as the
+  `garmentIdForCategory` guard.
+- `POST /api/garments/:id/describe` — re-run the vision pass on demand.
+
+### Client bundle: keep the extractor out of the entry chunk
+Routes are `React.lazy`-split in `App.tsx`. transformers.js + the ONNX runtime
+are ~888 kB and are used **only** by `CapturePage`; a static import put them in
+the entry chunk, so opening the Calendar downloaded the whole model runtime
+(entry was 1,089 kB, now 177 kB).
+
+The trap: importing anything from a page module pulls that page's chunk in with
+it. `CATEGORY_ICONS` used to live in `CapturePage` and was imported by the
+wardrobe — which dragged the extractor back into that route. Shared constants
+belong in `api.ts`. After changing imports, check `npm run build`'s chunk list.
+
 ### Categories are a single source of truth
 The three categories (`top`, `bottom`, `shoes`) are defined in **two** places that
 must stay in sync: `server/src/config.ts` (`CATEGORIES` + the DB `CHECK` constraint
