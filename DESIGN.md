@@ -70,10 +70,28 @@ not an icon system.
 
 ## Motion
 
-One authored moment: the scan sweep over the photo while the model reads it.
+Two authored moments, and no scattered third:
+
+1. **The scan sweep** over the photo while the model reads it — the only motion
+   that runs on its own.
+2. **Softening at the scroll edges** (`.soften-at-edges`, on the wardrobe and
+   saved-outfit grids). Both bars are translucent, so content slides *under*
+   them and would otherwise hard-clip at the blur line; easing it out on arrival
+   makes the bars read as glass over depth. Deliberately slight — this is list
+   navigation, seen dozens of times a day, where motion earns its place only by
+   being near-imperceptible.
+
+   Built as a CSS scroll-driven animation (`animation-timeline: view()`), so it
+   tracks the finger exactly and runs off the main thread. It animates the
+   `scale` property rather than `transform`, leaving `transform` free for the
+   tiles' own press feedback. Where the browser has no scroll timelines nothing
+   animates and everything stays fully visible. Not applied to the calendar:
+   blurring dates would obscure the task.
+
 Everything else moves only in response to touch. Exponential ease-out
 (`--ease-out`) from an already-visible default. `prefers-reduced-motion` cuts
-every animation and turns the sheet rise into a fade.
+every animation, turns the sheet rise into a fade, and disables the edge
+softening entirely.
 
 ## Browser surfaces
 
