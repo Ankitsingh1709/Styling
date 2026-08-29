@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import Screen from "../components/Screen";
 import Icon from "../components/Icon";
 import SettingsSheet from "../components/SettingsSheet";
-import { CATEGORY_ICONS } from "./CapturePage";
+import GarmentSheet from "../components/GarmentSheet";
 import {
   CATEGORIES,
+  CATEGORY_ICONS,
   CATEGORY_LABELS,
   deleteGarment,
   listGarments,
@@ -21,6 +22,7 @@ export default function WardrobePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
+  const [openGarment, setOpenGarment] = useState<Garment | null>(null);
 
   async function refresh() {
     try {
@@ -62,6 +64,13 @@ export default function WardrobePage() {
     </button>
   );
 
+  // Re-filing the last garment of the filtered category would otherwise leave a
+  // dead screen: the chip disabled but still active, no items, and no empty
+  // state (the wardrobe as a whole isn't empty).
+  useEffect(() => {
+    if (filter !== "all" && counts[filter] === 0) setFilter("all");
+  }, [filter, counts]);
+
   const shown = CATEGORIES.filter((c) => filter === "all" || c === filter);
 
   return (
@@ -77,6 +86,18 @@ export default function WardrobePage() {
       }
     >
       {settings && <SettingsSheet onClose={() => setSettings(false)} />}
+
+      {openGarment && (
+        <GarmentSheet
+          garment={openGarment}
+          onChanged={(g) => {
+            setGarments((prev) => prev.map((x) => (x.id === g.id ? g : x)));
+            setOpenGarment(g);
+          }}
+          onDeleted={remove}
+          onClose={() => setOpenGarment(null)}
+        />
+      )}
 
       {loading && (
         <div className="garment-grid">
@@ -147,20 +168,18 @@ export default function WardrobePage() {
                 </p>
                 <div className="garment-grid">
                   {items.map((g) => (
-                    <div className="garment" key={g.id}>
+                    <button
+                      className="garment"
+                      key={g.id}
+                      onClick={() => setOpenGarment(g)}
+                      aria-label={`${g.analysis?.description ?? CATEGORY_LABELS[category]} — edit`}
+                    >
                       <img
                         src={g.imageUrl}
                         alt={g.analysis?.description ?? CATEGORY_LABELS[category]}
                         loading="lazy"
                       />
-                      <button
-                        className="garment-delete"
-                        onClick={() => remove(g.id)}
-                        aria-label={`Delete ${g.analysis?.description ?? CATEGORY_LABELS[category]}`}
-                      >
-                        <Icon name="trash" size={15} />
-                      </button>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </section>

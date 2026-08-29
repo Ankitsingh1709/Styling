@@ -1,3 +1,10 @@
+/** An API failure that carries the HTTP status, so callers can react to it. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 export const CATEGORIES = ["top", "bottom", "shoes"] as const;
 export type Category = (typeof CATEGORIES)[number];
 
@@ -5,6 +12,14 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   top: "Upper body",
   bottom: "Lower body",
   shoes: "Shoes",
+};
+
+/** Icon name per category. Lives here, not in a page, so importing it can't
+ *  pull a route's chunk (and the extractor with it) into another route. */
+export const CATEGORY_ICONS: Record<Category, "shirt" | "trousers" | "shoe"> = {
+  top: "shirt",
+  bottom: "trousers",
+  shoes: "shoe",
 };
 
 /** What the vision pass recorded about a garment. Null until it's been described. */
@@ -42,6 +57,30 @@ export async function saveGarment(image: Blob, category: Category): Promise<Garm
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? "Failed to save garment");
+  }
+  return res.json();
+}
+
+/** Re-file a mis-categorised garment. Clears any outfit slot that referenced it. */
+export async function setGarmentCategory(id: number, category: Category): Promise<Garment> {
+  const res = await fetch(`/api/garments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ category }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(body.error ?? "Couldn't change the category", res.status);
+  }
+  return res.json();
+}
+
+/** Re-run the vision pass — every stylist suggestion reasons from this text. */
+export async function describeGarment(id: number): Promise<Garment> {
+  const res = await fetch(`/api/garments/${id}/describe`, { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(body.error ?? "Couldn't describe that garment", res.status);
   }
   return res.json();
 }
@@ -133,13 +172,6 @@ export async function clearWear(date: string): Promise<void> {
 }
 
 // ---- AI stylist ----
-
-/** An API failure that carries the HTTP status, so callers can react to it. */
-export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-  }
-}
 
 export interface ChatMessage {
   role: "user" | "assistant";

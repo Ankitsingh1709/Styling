@@ -4,10 +4,10 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import multer from "multer";
 import { db, type GarmentRow } from "../db.js";
-import { STORAGE_DIR, isCategory } from "../config.js";
+import { STORAGE_DIR, isCategory, type Category } from "../config.js";
 import { toGarmentDto as toDto } from "../garmentDto.js";
-import { analyzeGarmentInBackground } from "../garmentAnalysis.js";
-import { isAnyProviderConfigured } from "../ai/index.js";
+import { analyzeGarment, analyzeGarmentInBackground } from "../garmentAnalysis.js";
+import { describeAiError, isAnyProviderConfigured } from "../ai/index.js";
 
 fs.mkdirSync(STORAGE_DIR, { recursive: true });
 
@@ -64,6 +64,83 @@ garmentsRouter.post("/", upload.single("image"), (req, res) => {
   if (isAnyProviderConfigured()) analyzeGarmentInBackground(row.id);
 
   res.status(201).json(toDto(row));
+});
+
+/**
+ * PATCH /api/garments/:id — body: { category }
+ *
+ * Fixes a mis-filed garment. Extraction gets the category wrong often enough
+ * to matter (a jacket tied round the waist comes back as a "bottom"), and
+ * before this the only remedy was delete-and-reshoot.
+ */
+garmentsRouter.patch("/:id", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const category = req.body?.category;
+  if (!isCategory(category)) {
+    return res.status(400).json({ error: "Missing or invalid category" });
+  }
+
+  const row = db.prepare("SELECT * FROM garments WHERE id = ?").get(id) as unknown as
+    | GarmentRow
+    | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (row.category === category) return res.json(toDto(row));
+
+  // Outfits reference a garment by slot, so a garment that changes category
+  // would otherwise keep sitting in the wrong slot — shoes rendered on the
+  // torso. Clear the stale references; the outfit survives with an empty slot,
+  // which is the same thing that happens when a garment is deleted.
+  const slot: Record<Category, string> = {
+    top: "top_id",
+    bottom: "bottom_id",
+    shoes: "shoes_id",
+  };
+  const oldSlot = slot[row.category as Category];
+  db.prepare(`UPDATE outfits SET ${oldSlot} = NULL WHERE ${oldSlot} = ?`).run(id);
+  db.prepare("UPDATE garments SET category = ? WHERE id = ?").run(category, id);
+
+  const updated = db
+    .prepare("SELECT * FROM garments WHERE id = ?")
+    .get(id) as unknown as GarmentRow;
+  res.json(toDto(updated));
+});
+
+/**
+ * POST /api/garments/:id/describe — re-run the vision pass.
+ * Used when the stored description is wrong, since every stylist suggestion is
+ * reasoned from that text rather than from the image.
+ */
+garmentsRouter.post("/:id/describe", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+
+  // analyzeGarment returns null for three different reasons; only one of them
+  // is the model's fault, so rule the other two out here rather than showing an
+  // AI-shaped error the user would retry forever.
+  const row = db.prepare("SELECT * FROM garments WHERE id = ?").get(id) as unknown as
+    | GarmentRow
+    | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  if (!fs.existsSync(path.join(STORAGE_DIR, row.image_path))) {
+    return res.status(500).json({ error: "That garment's image is missing from storage." });
+  }
+
+  try {
+    const result = await analyzeGarment(id);
+    if (!result) {
+      return res.status(502).json({ error: "The model didn't return a description." });
+    }
+    const row = db
+      .prepare("SELECT * FROM garments WHERE id = ?")
+      .get(id) as unknown as GarmentRow;
+    res.json(toDto(row));
+  } catch (err) {
+    const { status, message } = describeAiError(err);
+    console.error("[garments] describe failed:", err);
+    res.status(status).json({ error: message });
+  }
 });
 
 // DELETE /api/garments/:id  (removes the row and the file)

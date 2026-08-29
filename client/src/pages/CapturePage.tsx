@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Screen from "../components/Screen";
-import Icon, { type IconName } from "../components/Icon";
+import Icon from "../components/Icon";
 import CameraCapture from "../components/CameraCapture";
 import {
   extractAllGarments,
@@ -9,17 +9,17 @@ import {
   releaseSegmentationCache,
   type ExtractedPiece,
 } from "../lib/extract";
-import { CATEGORIES, CATEGORY_LABELS, saveGarment, type Category } from "../api";
+import {
+  CATEGORIES,
+  CATEGORY_ICONS,
+  CATEGORY_LABELS,
+  saveGarment,
+  type Category,
+} from "../api";
 
 type Stage = "choose" | "camera" | "review";
 /** "look" = one full-body photo → every piece. "item" = one garment, one category. */
 type Mode = "look" | "item";
-
-export const CATEGORY_ICONS: Record<Category, IconName> = {
-  top: "shirt",
-  bottom: "trousers",
-  shoes: "shoe",
-};
 
 export default function CapturePage() {
   const navigate = useNavigate();
